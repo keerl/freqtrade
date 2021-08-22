@@ -2,7 +2,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
+import os
 import pandas as pd
+import json
 
 from freqtrade.configuration import TimeRange
 from freqtrade.data.btanalysis import (calculate_max_drawdown, combine_dataframes_with_mean,
@@ -563,17 +565,42 @@ def load_and_plot_trades(config: Dict[str, Any]):
         else:
             trades_pair = trades
 
-        fig = generate_candlestick_graph(
-            pair=pair,
-            data=df_analyzed,
-            trades=trades_pair,
-            indicators1=config.get('indicators1', []),
-            indicators2=config.get('indicators2', []),
-            plot_config=strategy.plot_config if hasattr(strategy, 'plot_config') else {}
-        )
+        #######################################################################################################
+        # START ALINOCO MODS
+        #######################################################################################################
 
-        store_plot_file(fig, filename=generate_plot_filename(pair, config['timeframe']),
-                        directory=config['user_data_dir'] / 'plot')
+        df_analyzed_copy = df_analyzed.copy()
+        df_analyzed_copy.rename(columns={ df_analyzed_copy.columns[0]: "time" }, inplace = True)
+        df_analyzed_copy_json = df_analyzed_copy.to_json(orient='records', date_unit='s')
+
+        trades_pair_json = trades_pair.to_json(orient='records', date_unit='s')
+
+        plot_config = create_plotconfig(config.get('indicators1', []), config.get('indicators2', []), strategy.plot_config if hasattr(strategy, 'plot_config') else {})
+
+        plot_output = {}
+        plot_output['plot_config'] = plot_config
+        plot_output['data'] = json.loads(df_analyzed_copy_json)
+        plot_output['trades'] = json.loads(trades_pair_json)
+
+        with open(f"{config['user_data_dir']}/plot/{generate_plot_filename(pair, config['timeframe'])}".replace('m.html', 'm-output.json'), 'w') as file:
+            json.dump(plot_output, file)
+
+        #######################################################################################################
+        # END ALNICO MODS
+        #######################################################################################################
+
+        # DISABLE DEFAULT PLOTTING
+        # fig = generate_candlestick_graph(
+        #     pair=pair,
+        #     data=df_analyzed,
+        #     trades=trades_pair,
+        #     indicators1=config.get('indicators1', []),
+        #     indicators2=config.get('indicators2', []),
+        #     plot_config=strategy.plot_config if hasattr(strategy, 'plot_config') else {}
+        # )
+
+        # store_plot_file(fig, filename=generate_plot_filename(pair, config['timeframe']),
+        #                 directory=config['user_data_dir'] / 'plot')
 
     logger.info('End of plotting process. %s plots generated', pair_counter)
 
